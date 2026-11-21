@@ -1,3 +1,21 @@
+# Environnement virtuel
 env/
-MP3/*.mp3
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Clips audio telechargés (ne jamais versionner)
+MP3/
+*.mp3
+*.ogg
+
+# Données générées par le script
 *.json
+
+# Fichiers locaux / éditeur
+.env
+.idea/
+.vscode/
