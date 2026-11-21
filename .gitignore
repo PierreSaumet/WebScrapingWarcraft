@@ -14,6 +14,8 @@ MP3/
 
 # Données générées par le script
 *.json
+data/
+!unit_names.json
 
 # Fichiers locaux / éditeur
 .env

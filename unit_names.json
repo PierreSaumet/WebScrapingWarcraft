@@ -1,0 +1,498 @@
+{
+  "Human": {
+    "peasant_militia": {
+      "fr": "Paysan",
+      "en": "Peasant/Militia"
+    },
+    "footman": {
+      "fr": "Fantassin",
+      "en": "Footman"
+    },
+    "knight": {
+      "fr": "Chevalier",
+      "en": "Knight"
+    },
+    "rifleman": {
+      "fr": "Fusilier",
+      "en": "Rifleman"
+    },
+    "mortar_team": {
+      "fr": "Mortier",
+      "en": "Mortar_Team"
+    },
+    "gyrocopter_flying_machine": {
+      "fr": "Machine_volante",
+      "en": "Gyrocopter/Flying_Machine"
+    },
+    "gryphon_rider": {
+      "fr": "Chevaucheur_de_griffons",
+      "en": "Gryphon_Rider"
+    },
+    "priest": {
+      "fr": "Prêtre",
+      "en": "Priest"
+    },
+    "sorceress": {
+      "fr": "Sorcière",
+      "en": "Sorceress"
+    },
+    "spell_breaker": {
+      "fr": "Brisesort",
+      "en": "Spell_Breaker"
+    },
+    "dragonhawk_rider": {
+      "fr": "Chevaucheur_de_dragon-faucon",
+      "en": "Dragonhawk_Rider"
+    },
+    "captain": {
+      "fr": "Capitaine",
+      "en": "Captain"
+    },
+    "dragon_hawk": {
+      "fr": "Chevaucheur_de_dragon-faucon_(beta)",
+      "en": "Dragon_Hawk"
+    },
+    "worker": {
+      "fr": null,
+      "en": "Worker"
+    },
+    "paladin": {
+      "fr": "Paladin_(héros)",
+      "en": "Paladin"
+    },
+    "archmage": {
+      "fr": "Archimage_(héros)",
+      "en": "Archmage"
+    },
+    "mountain_king": {
+      "fr": "Roi_de_la_montagne_(héros)",
+      "en": "Mountain_King"
+    },
+    "blood_mage": {
+      "fr": "Mage_de_sang_(héros)",
+      "en": "Blood_Mage"
+    },
+    "ranger": {
+      "fr": null,
+      "en": "Ranger"
+    },
+    "arthas": {
+      "fr": "Arthas_(héros)",
+      "en": "Arthas"
+    },
+    "jaina_proudmoore": {
+      "fr": "Jaina_(héros)",
+      "en": "Jaina_Proudmoore"
+    },
+    "muradin_bronzebeard": {
+      "fr": "Muradin_(héros)",
+      "en": "Muradin_Bronzebeard"
+    },
+    "uther_the_lightbringer": {
+      "fr": "Uther_(héros)",
+      "en": "Uther_the_Lightbringer"
+    },
+    "sylvanas_windrunner": {
+      "fr": null,
+      "en": "Sylvanas_Windrunner"
+    },
+    "prince_kael_thas": {
+      "fr": "Kael'thas_(héros)",
+      "en": "Prince_Kael'thas"
+    },
+    "lord_garithos": {
+      "fr": null,
+      "en": "Lord_Garithos"
+    },
+    "alerts": {
+      "fr": "Alertes",
+      "en": null
+    },
+    "buildings": {
+      "fr": "Bâtiments",
+      "en": null
+    },
+    "elementaire_d_eau": {
+      "fr": "Élémentaire_d'eau",
+      "en": null
+    },
+    "cheval_sans_cavalier": {
+      "fr": "Cheval_sans_cavalier",
+      "en": null
+    },
+    "engin_de_siege": {
+      "fr": "Engin_de_siège",
+      "en": null
+    },
+    "phenix": {
+      "fr": "Phénix",
+      "en": null
+    }
+  },
+  "Orc": {
+    "peon": {
+      "fr": "Péon",
+      "en": "Peon"
+    },
+    "grunt": {
+      "fr": "Grunt",
+      "en": "Grunt"
+    },
+    "raider": {
+      "fr": "Chevaucheur_de_loup",
+      "en": "Raider"
+    },
+    "tauren": {
+      "fr": "Tauren",
+      "en": "Tauren"
+    },
+    "troll_headhunter_berserker": {
+      "fr": "Chasseur_de_tête",
+      "en": "Troll_Headhunter/Berserker"
+    },
+    "kodo_beast": {
+      "fr": "Bête_kodo",
+      "en": "Kodo_Beast",
+      "fallback_fr": true
+    },
+    "wyvern_wind_rider": {
+      "fr": "Chevaucheur_de_vent",
+      "en": "Wyvern/Wind_Rider"
+    },
+    "troll_batrider": {
+      "fr": "Chevaucheur_de_chauve-souris",
+      "en": "Troll_Batrider"
+    },
+    "troll_witch_doctor": {
+      "fr": "Sorcier_docteur",
+      "en": "Troll_Witch_Doctor"
+    },
+    "shaman": {
+      "fr": "Chaman",
+      "en": "Shaman"
+    },
+    "spirit_walker": {
+      "fr": "Esprit_marcheur",
+      "en": "Spirit_Walker"
+    },
+    "blademaster": {
+      "fr": "Maître-lame_(héros)",
+      "en": "Blademaster"
+    },
+    "far_seer": {
+      "fr": "Prophète_(héros)",
+      "en": "Far_Seer"
+    },
+    "tauren_chieftain": {
+      "fr": "Chef_tauren_(héros)",
+      "en": "Tauren_Chieftain"
+    },
+    "shadow_hunter": {
+      "fr": "Chasseur_des_ombres_(héros)",
+      "en": "Shadow_Hunter"
+    },
+    "warlord_slave_master": {
+      "fr": "Chef_de_guerre_orc",
+      "en": "Warlord/Slave_Master"
+    },
+    "thrall": {
+      "fr": "Thrall_(héros)",
+      "en": "Thrall"
+    },
+    "grom_hellscream": {
+      "fr": "Grommash_(héros)",
+      "en": "Grom_Hellscream"
+    },
+    "cairne_bloodhoof": {
+      "fr": "Cairne_(héros)",
+      "en": "Cairne_Bloodhoof"
+    },
+    "rokhan": {
+      "fr": "Rokhan_(héros)",
+      "en": "Rokhan"
+    },
+    "drek_thar": {
+      "fr": "Drek'Thar_(héros)",
+      "en": "Drek'Thar"
+    },
+    "nazgrel": {
+      "fr": "Nazgrel",
+      "en": "Nazgrel"
+    },
+    "alerts": {
+      "fr": "Alertes",
+      "en": null
+    },
+    "buildings": {
+      "fr": "Bâtiments",
+      "en": null
+    },
+    "demolisseur": {
+      "fr": "Démolisseur",
+      "en": null
+    },
+    "esprit_du_loup": {
+      "fr": "Esprit_du_loup",
+      "en": null
+    }
+  },
+  "Night_Elf": {
+    "archer": {
+      "fr": "Archer",
+      "en": "Archer"
+    },
+    "huntress": {
+      "fr": "Chasseresse",
+      "en": "Huntress"
+    },
+    "dryad": {
+      "fr": "Dryade",
+      "en": "Dryad"
+    },
+    "hippogryph_rider": {
+      "fr": "Chevaucheur_d'hippogryphe",
+      "en": "Hippogryph_Rider"
+    },
+    "druid_of_the_talon": {
+      "fr": [
+        "Druide-corbeau_(forme_d'elfe)",
+        "Druide-corbeau_(forme_de_corbeau)"
+      ],
+      "en": "Druid_of_the_Talon"
+    },
+    "druid_of_the_claw": {
+      "fr": [
+        "Druide-ours_(forme_d'elfe)",
+        "Druide-ours_(forme_d'ours)"
+      ],
+      "en": "Druid_of_the_Claw"
+    },
+    "keeper_of_the_grove": {
+      "fr": "Gardien_du_bosquet_(héros)",
+      "en": "Keeper_of_the_Grove"
+    },
+    "priestess_of_the_moon": {
+      "fr": "Prêtresse_de_la_lune_(héros)",
+      "en": "Priestess_of_the_Moon"
+    },
+    "demon_hunter": {
+      "fr": [
+        "Chasseur_de_démons_(héros)",
+        "Chasseur_de_démons_(héros)_(transformé)"
+      ],
+      "en": "Demon_Hunter"
+    },
+    "warden": {
+      "fr": "Gardienne_(héros)",
+      "en": "Warden"
+    },
+    "avatar_of_vengeance": {
+      "fr": "Avatar_de_la_vengeance",
+      "en": "Avatar_of_Vengeance"
+    },
+    "spirit_of_vengeance": {
+      "fr": "Esprit_de_la_vengeance",
+      "en": "Spirit_of_Vengeance"
+    },
+    "tyrande_whisperwind": {
+      "fr": "Tyrande_(héros)",
+      "en": "Tyrande_Whisperwind"
+    },
+    "malfurion_stormrage": {
+      "fr": [
+        "Malfurion_(héros)",
+        "Malfurion_(héros)_(avec_monture)"
+      ],
+      "en": "Malfurion_Stormrage"
+    },
+    "illidan_stormrage": {
+      "fr": [
+        "Illidan_(héros)",
+        "Illidan_(héros)_(transformé)"
+      ],
+      "en": "Illidan_Stormrage"
+    },
+    "maiev_shadowsong": {
+      "fr": "Maiev_(héros)",
+      "en": "Maiev_Shadowsong"
+    },
+    "shandris_feathermoon": {
+      "fr": "Shandris",
+      "en": "Shandris_Feathermoon"
+    },
+    "naisha": {
+      "fr": "Naisha",
+      "en": "Naisha"
+    },
+    "night_elf_runner": {
+      "fr": "Messagère",
+      "en": "Night_Elf_Runner"
+    },
+    "alerts": {
+      "fr": "Alertes",
+      "en": null
+    },
+    "chimere": {
+      "fr": "Chimère",
+      "en": null
+    },
+    "dragon_feerique": {
+      "fr": "Dragon_féerique",
+      "en": null
+    },
+    "feu_follet": {
+      "fr": "Feu_follet",
+      "en": null
+    },
+    "treant": {
+      "fr": "Tréant",
+      "en": null
+    },
+    "geant_de_la_montagne": {
+      "fr": "Géant_de_la_montagne",
+      "en": null
+    },
+    "hippogryphe": {
+      "fr": "Hippogryphe",
+      "en": null
+    },
+    "lanceur_de_glaive": {
+      "fr": "Lanceur_de_glaive",
+      "en": null
+    },
+    "ancien_de_la_guerre": {
+      "fr": "Ancien_de_la_guerre",
+      "en": null
+    },
+    "ancien_des_merveilles": {
+      "fr": "Ancien_des_merveilles",
+      "en": null
+    },
+    "ancien_des_vents": {
+      "fr": "Ancien_des_vents",
+      "en": null
+    },
+    "ancien_du_savoir": {
+      "fr": "Ancien_du_savoir",
+      "en": null
+    },
+    "ancien_protecteur": {
+      "fr": "Ancien_protecteur",
+      "en": null
+    },
+    "arbre_de_vie": {
+      "fr": "Arbre_de_vie",
+      "en": null
+    },
+    "autres_batiments": {
+      "fr": "Autres_bâtiments",
+      "en": null
+    }
+  },
+  "Undead": {
+    "acolyte": {
+      "fr": "Acolyte",
+      "en": "Acolyte"
+    },
+    "shade": {
+      "fr": "Ombre",
+      "en": "Shade"
+    },
+    "ghoul": {
+      "fr": "Goule",
+      "en": "Ghoul"
+    },
+    "abomination": {
+      "fr": "Abomination",
+      "en": "Abomination"
+    },
+    "crypt_fiend": {
+      "fr": "Démon_des_cryptes",
+      "en": "Crypt_Fiend"
+    },
+    "banshee": {
+      "fr": "Banshee",
+      "en": "Banshee"
+    },
+    "necromancer": {
+      "fr": "Nécromancien",
+      "en": "Necromancer"
+    },
+    "death_knight": {
+      "fr": "Chevalier_de_la_mort_(héros)",
+      "en": "Death_Knight"
+    },
+    "lich": {
+      "fr": "Liche_(héros)",
+      "en": "Lich"
+    },
+    "dreadlord": {
+      "fr": "Seigneur_de_l'effroi_(héros)",
+      "en": "Dreadlord"
+    },
+    "crypt_lord": {
+      "fr": "Seigneur_des_cryptes_(héros)",
+      "en": "Crypt_Lord"
+    },
+    "arthas": {
+      "fr": "Arthas_maléfique_(héros)",
+      "en": "Arthas"
+    },
+    "kel_thuzad": {
+      "fr": "Kel'Thuzad_(héros)",
+      "en": "Kel'Thuzad"
+    },
+    "tichondrius": {
+      "fr": "Tichondrius_(héros)",
+      "en": "Tichondrius"
+    },
+    "sylvanas_windrunner": {
+      "fr": "Sylvanas_maléfique_(héros)",
+      "en": "Sylvanas_Windrunner"
+    },
+    "varimathras": {
+      "fr": "Varimathras_(héros)",
+      "en": "Varimathras"
+    },
+    "alerts": {
+      "fr": "Alertes",
+      "en": null
+    },
+    "chariot_a_viande": {
+      "fr": "Chariot_à_viande",
+      "en": null
+    },
+    "destructeur": {
+      "fr": "Destructeur",
+      "en": null
+    },
+    "gargouille": {
+      "fr": "Gargouille",
+      "en": null
+    },
+    "squelette": {
+      "fr": "Squelette",
+      "en": null
+    },
+    "scarabee_charognard": {
+      "fr": "Scarabée_charognard",
+      "en": null
+    },
+    "statue_d_obsidenne": {
+      "fr": "Statue_d'obsidenne",
+      "en": null
+    },
+    "wyrm_des_glaces": {
+      "fr": "Wyrm_des_glaces",
+      "en": null
+    },
+    "repliques_isolees": {
+      "fr": "Répliques_isolées",
+      "en": null
+    },
+    "buildings": {
+      "fr": "Bâtiments",
+      "en": null
+    }
+  }
+}
