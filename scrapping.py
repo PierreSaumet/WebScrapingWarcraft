@@ -3,6 +3,7 @@ import concurrent.futures
 import io
 import json
 import os
+import random
 import re
 import shutil
 import string
@@ -61,14 +62,29 @@ def safe_dirname(name) -> str:
     return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", name)
 
 
+DOWNLOAD_RETRIES = 4
+
+
+def download_with_retry(session, url, retries=DOWNLOAD_RETRIES):
+    for attempt in range(retries):
+        try:
+            resp = session.get(url, timeout=60)
+            resp.raise_for_status()
+            return resp.content
+        except requests.RequestException:
+            if attempt == retries - 1:
+                raise
+            time.sleep(2 ** attempt + random.random())  # 1s, 2s, 4s (+ jitter)
+
+
 def write_mp3(session, url, folder_name, file_name):
-    # Download the clip straight into memory
-    resp = session.get(url, timeout=60)
-    resp.raise_for_status()
+    # Download the clip straight into memory. The CDN sometimes answers a
+    # transient 403/429/5xx under load, so retry the download (not the decode).
+    content = download_with_retry(session, url)
     # Source clips are .ogg (FR) or .wav (EN) despite the ".mp3" naming
     # convention we save them under - let ffmpeg auto-detect the real container
     # instead of forcing "mp3" (which fails to decode).
-    sound = AudioSegment.from_file(io.BytesIO(resp.content))
+    sound = AudioSegment.from_file(io.BytesIO(content))
 
     # Create the folder if needed (safe to call from multiple threads)
     os.makedirs(folder_name, exist_ok=True)
@@ -208,6 +224,42 @@ def load_unit_index():
     return index
 
 
+def print_comparison(counts, langs):
+    """Per race and unit_key: clips per language, and which side(s) an unit exists on."""
+    try:
+        with open(UNIT_NAMES_FILE, encoding="utf-8") as fh:
+            table = json.load(fh)
+    except FileNotFoundError:
+        table = {}
+
+    def label(race, key):
+        names = table.get(race, {}).get(key, {})
+        value = names.get("en") or names.get("fr") or key
+        return value if isinstance(value, str) else value[0]
+
+    totals = {lang: 0 for lang in langs}
+    for race in [r for r, _ in SOURCES["fr"]]:
+        # keys of the table never scraped on any requested lang are reported as stale
+        units = dict(counts.get(race, {}))
+        stale = [k for k in table.get(race, {}) if k not in units]
+        print(f"\n== {race} ==")
+        print(f"{'unit':38} " + " ".join(f"{lang.upper():>5}" for lang in langs) + ("   diff  status" if len(langs) == 2 else ""))
+        for key in sorted(units, key=lambda k: label(race, k).lower()):
+            row = units[key]
+            cells = [row.get(lang, 0) for lang in langs]
+            for lang, n in zip(langs, cells):
+                totals[lang] += n
+            line = f"{label(race, key)[:38]:38} " + " ".join(f"{n:5}" for n in cells)
+            if len(langs) == 2:
+                fr, en = cells
+                status = "FR only" if en == 0 else "EN only" if fr == 0 else "ok" if fr == en else "count differs"
+                line += f"  {fr - en:+5}  {status}"
+            print(line)
+        for key in stale:
+            print(f"{label(race, key)[:38]:38} (in unit_names.json but not scraped: stale or typo?)")
+    print("\nTOTAL " + "  ".join(f"{lang.upper()}={totals[lang]}" for lang in langs))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Scrape Warcraft III voice lines (FR and/or EN).")
     group = parser.add_mutually_exclusive_group()
@@ -226,6 +278,7 @@ def main():
 
     download_tasks = []  # (lang, url, folder, name)
     unmatched = {}
+    counts = {}  # race -> unit_key (or '?name') -> lang -> number of clips
     for lang in langs:
         id_g = 0
         for race, _ref in SOURCES[lang]:
@@ -241,6 +294,9 @@ def main():
                 unit_key = names.get(unit_name)
                 if unit_key is None and names:
                     unmatched.setdefault((lang, race), set()).add(unit_name)
+
+                bucket = counts.setdefault(race, {}).setdefault(unit_key or f"?{unit_name}", {})
+                bucket[lang] = bucket.get(lang, 0) + 1
 
                 data = {
                     "id_g": id_g,
@@ -295,6 +351,7 @@ def main():
         print(f"UNMAPPED {lang}/{race} ({len(missing)}): {', '.join(sorted(map(str, missing)))}")
 
     if args.check_names:
+        print_comparison(counts, langs)
         return
 
     scrape_elapsed = time.time() - start_time

@@ -47,7 +47,7 @@ Chaque entrée du JSON (clé `"{id}-{nom}"`) :
 ### Lien entre unités FR et EN
 
 `unit_names.json` (versionné) relie les noms de sections : `race → unit_key → {fr, en}` (`fr` peut être une liste quand une unité a plusieurs formes; `null` si l'unité n'existe que d'un côté). Chaque réplique porte le `unit_key` correspondant : filtrer sur `unit_key` donne les répliques FR et EN d'une même unité (ex. `footman` ↔ Fantassin).
-Après un changement du wiki, `python scrapping.py --check-names` liste les noms de sections absents de la table (sans rien télécharger) : ajoutez-les à `unit_names.json`.
+`python scrapping.py --check-names` (sans rien télécharger) liste les noms de sections absents de la table (`UNMAPPED`, à ajouter à `unit_names.json`) puis affiche, par race et par unité, le nombre de répliques FR / EN, l'écart et un statut (`ok`, `count differs`, `FR only`, `EN only`), ainsi que les entrées de la table qui n'existent plus sur les wikis.
 
 ## Prérequis
 
@@ -100,7 +100,7 @@ Les JSON sont créés dans `data/<lang>/` et les clips dans `MP3/<lang>/`.
 
 **Après**
 
-- [ ] La dernière ligne indique `Done. N/N clips downloaded successfully`. Les échecs sont listés un par un (`Failed to download ...`), ils ne bloquent pas le reste.
+- [ ] La dernière ligne indique `Done. N/N clips downloaded successfully`. Chaque téléchargement est retenté jusqu'à 4 fois (attente 1, 2, 4 s) : le CDN renvoie parfois un 403 ponctuel. Les échecs définitifs sont listés un par un (`Failed to download ...`), ils ne bloquent pas le reste; relancez la langue concernée.
 - [ ] Aucun message `WARNING: found 0 quotes for <lang>/<race>` ni `UNMAPPED ...`. S'il apparaît, la page n'a pas pu être lue (voir la section suivante).
 - [ ] Les JSON existent dans `data/<lang>/` et `MP3/<lang>/` contient un sous-dossier par race.
 - [ ] Aucune entrée avec `"name": null` dans les JSON : ce serait le signe que le wiki a changé la structure de ses titres de sections.
