@@ -1,15 +1,43 @@
-
+import argparse
+import concurrent.futures
 import io
+import json
 import os
+import re
 import shutil
 import string
-import json
 import time
-import concurrent.futures
 
 import cloudscraper
+import requests
 from bs4 import BeautifulSoup
 from pydub import AudioSegment
+
+MAX_WORKERS = 8  # benchmarked against the live site: diminishing returns past ~8 concurrent downloads
+HERE = os.path.dirname(os.path.abspath(__file__))
+UNIT_NAMES_FILE = os.path.join(HERE, "unit_names.json")
+EN_API = "https://warcraft.wiki.gg/api.php"
+EN_USER_AGENT = "WebScrapingWarcraft/1.0 (educational scraper)"
+
+# Canonical race names are shared by every language; the third item is the
+# page reference handed to the language's fetcher (FR: URL, EN: wiki page title).
+SOURCES = {
+    "fr": [
+        ("Human", "https://wowwiki.fandom.com/fr/wiki/R%C3%A9pliques_de_Warcraft_III/Humain"),
+        ("Orc", "https://wowwiki.fandom.com/fr/wiki/R%C3%A9pliques_de_Warcraft_III/Orc"),
+        ("Night_Elf", "https://wowwiki.fandom.com/fr/wiki/R%C3%A9pliques_de_Warcraft_III/Elfe_de_la_nuit"),
+        ("Undead", "https://wowwiki.fandom.com/fr/wiki/R%C3%A9pliques_de_Warcraft_III/Mort-vivant"),
+    ],
+    "en": [
+        ("Human", "Quotes_of_Warcraft_III/Human_Alliance"),
+        ("Orc", "Quotes_of_Warcraft_III/Orc_Horde"),
+        ("Night_Elf", "Quotes_of_Warcraft_III/Night_Elf_Sentinels"),
+        ("Undead", "Quotes_of_Warcraft_III/Undead_Scourge"),
+    ],
+}
+
+# <li> only on the FR wiki; the EN wiki also puts some quotes (Ready/Warcry) in <dd>.
+QUOTE_TAGS = {"fr": ("li",), "en": ("li", "dd")}
 
 
 def clear_name(name) -> str:
@@ -26,13 +54,21 @@ def clear_name(name) -> str:
     return ret
 
 
+def safe_dirname(name) -> str:
+    """Filesystem-safe folder name (e.g. 'Peasant/Militia' must not nest folders)."""
+    if not name:
+        return "Unknown"
+    return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", name)
+
+
 def write_mp3(session, url, folder_name, file_name):
     # Download the clip straight into memory
-    get_data = session.get(url)
-    # Source clips are actually .ogg despite the ".mp3" naming convention we
-    # save them under - let ffmpeg auto-detect the real container instead of
-    # forcing "mp3" (which fails to decode).
-    sound = AudioSegment.from_file(io.BytesIO(get_data.content))
+    resp = session.get(url, timeout=60)
+    resp.raise_for_status()
+    # Source clips are .ogg (FR) or .wav (EN) despite the ".mp3" naming
+    # convention we save them under - let ffmpeg auto-detect the real container
+    # instead of forcing "mp3" (which fails to decode).
+    sound = AudioSegment.from_file(io.BytesIO(resp.content))
 
     # Create the folder if needed (safe to call from multiple threads)
     os.makedirs(folder_name, exist_ok=True)
@@ -40,17 +76,17 @@ def write_mp3(session, url, folder_name, file_name):
     sound.export(folder_name + file_name + ".mp3", format="mp3")
 
 
-def parse_race_page(soup):
-    """Yield (audio_url, quote_text, unit_name) for every quote <li> on the page,
+def parse_race_page(soup, quote_tags=("li",)):
+    """Yield (audio_url, quote_text, unit_name) for every quote on the page,
     tracking the nearest preceding section heading in a single linear pass.
 
     The wiki renders section headers in two different ways depending on the
     page variant served: most sections use <span class="mw-headline" id=...>,
-    but some (e.g. the "Alertes" table) use a collapsible-widget <h2 id=...>
+    but some (e.g. the FR "Alertes" table) use a collapsible-widget <h2 id=...>
     with no inner mw-headline span. Both are treated as heading markers.
     """
     current_name = None
-    for tag in soup.find_all(['span', 'h2', 'h3', 'h4', 'li']):
+    for tag in soup.find_all(['span', 'h2', 'h3', 'h4', *quote_tags]):
         if tag.name == 'span':
             if 'mw-headline' in (tag.get('class') or []):
                 current_name = tag.get('id')
@@ -61,90 +97,205 @@ def parse_race_page(soup):
                 current_name = tag.get('id')
             continue
 
-        is_audio = tag.find('audio')
-        if not is_audio:
+        audios = tag.find_all('audio')
+        if not audios:
             continue
 
-        # The wiki serves the audio URL either in `src` or, with lazy loading,
-        # in `data-src`. Accept both.
-        audio_url = is_audio.get('src') or is_audio.get('data-src')
-        is_audio.extract()
-        if not audio_url:
-            continue
+        # FR serves the audio URL in `src` or, with lazy loading, `data-src`;
+        # EN (MediaWiki audio button) nests it in <audio><source src=...>.
+        # A quote can carry several clips (EN: two voice variants, "Link/Link").
+        audio_urls = []
+        for audio in audios:
+            source = audio.find('source')
+            audio_urls.append(audio.get('src') or audio.get('data-src')
+                              or (source.get('src') if source else None))
+            # EN wraps <audio> + play button in a <span>; drop it whole so no
+            # "Link"/play glyph leaks into the quote text.
+            wrapper = audio.parent
+            if wrapper is not tag and wrapper.name == 'span' and wrapper.find('a', class_='ext-audiobutton'):
+                wrapper.extract()
+            else:
+                audio.extract()
         quote_text = tag.get_text()
+        if len(audios) > 1:
+            quote_text = re.sub(r'(\s*/\s*)+$', '', quote_text)
 
-        yield audio_url, quote_text, current_name
+        for audio_url in audio_urls:
+            if audio_url:
+                yield audio_url, quote_text, current_name
 
 
-MAX_WORKERS = 8  # benchmarked against the live site: diminishing returns past ~8 concurrent downloads
+def fetch_html_fr(session, url):
+    return session.get(url).content
+
+
+def fetch_html_en(session, page, retries=3):
+    params = dict(action="parse", page=page, prop="text", format="json", formatversion=2)
+    last_exc = None
+    for attempt in range(retries):
+        try:
+            resp = session.get(EN_API, params=params, timeout=60)
+            resp.raise_for_status()
+            return resp.json()["parse"]["text"]
+        except Exception as exc:  # network error, 403, malformed json...
+            last_exc = exc
+            time.sleep(1.5 * (attempt + 1))
+    raise last_exc
+
+
+def make_sessions(langs):
+    sessions = {}
+    if "fr" in langs:
+        # wowwiki.fandom.com sits behind a Cloudflare JS challenge that plain
+        # requests can't pass (403 "Just a moment..."), so use cloudscraper.
+        sessions["fr"] = cloudscraper.create_scraper()
+    if "en" in langs:
+        # warcraft.wiki.gg rejects cloudscraper and browser-like UAs on HTML
+        # pages, but its MediaWiki API answers plain requests with a descriptive UA.
+        s = requests.Session()
+        s.headers["User-Agent"] = EN_USER_AGENT
+        sessions["en"] = s
+    return sessions
+
+
+def fetch_all_pages(langs, sessions):
+    """Fetch every (lang, race) page concurrently. Returns {(lang, race): html or None}.
+    FR stays sequential (cloudscraper session isn't meant for concurrent challenge solving)."""
+    def fetch(lang, race, ref):
+        try:
+            if lang == "fr":
+                return fetch_html_fr(sessions["fr"], ref)
+            return fetch_html_en(sessions["en"], ref)
+        except Exception as exc:
+            print(f"WARNING: could not fetch {lang}/{race}: {exc}")
+            return None
+
+    pages = {}
+
+    def fetch_fr():
+        for race, ref in SOURCES["fr"]:
+            pages[("fr", race)] = fetch("fr", race, ref)
+
+    def fetch_en(race, ref):
+        pages[("en", race)] = fetch("en", race, ref)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+        futures = []
+        if "fr" in langs:
+            futures.append(ex.submit(fetch_fr))
+        if "en" in langs:
+            for race, ref in SOURCES["en"]:
+                futures.append(ex.submit(fetch_en, race, ref))
+        for f in futures:
+            f.result()
+    return pages
+
+
+def load_unit_index():
+    """Return ({(lang, race): {unit_name: unit_key}}) from unit_names.json (empty if missing)."""
+    index = {}
+    try:
+        with open(UNIT_NAMES_FILE, encoding="utf-8") as fh:
+            table = json.load(fh)
+    except FileNotFoundError:
+        return index
+    for race, units in table.items():
+        for key, names in units.items():
+            for lang in ("fr", "en"):
+                value = names.get(lang)  # one name, or a list (e.g. a unit's several forms)
+                for name in ([value] if isinstance(value, str) else value or []):
+                    index.setdefault((lang, race), {})[name] = key
+    return index
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Scrape Warcraft III voice lines (FR and/or EN).")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--all", action="store_true", help="scrape FR and EN (default)")
+    group.add_argument("--fr", "-f", action="store_true", help="scrape French quotes only")
+    group.add_argument("--en", "-e", action="store_true", help="scrape English quotes only")
+    parser.add_argument("--check-names", action="store_true",
+                        help="scrape pages only and list unit names missing from unit_names.json (no download)")
+    args = parser.parse_args()
+    langs = ["fr"] if args.fr else ["en"] if args.en else ["fr", "en"]
+
     start_time = time.time()
-    urls = (
-        ["https://wowwiki.fandom.com/fr/wiki/R%C3%A9pliques_de_Warcraft_III/Humain", "Humain"],
-        ["https://wowwiki.fandom.com/fr/wiki/R%C3%A9pliques_de_Warcraft_III/Orc", "Orc"],
-        ["https://wowwiki.fandom.com/fr/wiki/R%C3%A9pliques_de_Warcraft_III/Elfe_de_la_nuit", "Elfe_de_la_nuit"],
-        ["https://wowwiki.fandom.com/fr/wiki/R%C3%A9pliques_de_Warcraft_III/Mort-vivant", "Mort-vivant"]
-    )
+    sessions = make_sessions(langs)
+    pages = fetch_all_pages(langs, sessions)
+    unit_index = load_unit_index()
 
-    # wowwiki.fandom.com sits behind a Cloudflare JS challenge that plain
-    # requests.Session() can't pass (gets a 403 "Just a moment..." page),
-    # so use cloudscraper instead.
-    session = cloudscraper.create_scraper()
+    download_tasks = []  # (lang, url, folder, name)
+    unmatched = {}
+    for lang in langs:
+        id_g = 0
+        for race, _ref in SOURCES[lang]:
+            html = pages.get((lang, race))
+            quotes = list(parse_race_page(BeautifulSoup(html, "lxml"), QUOTE_TAGS[lang])) if html else []
 
-    download_tasks = []
-    id_g = 0
-    for url, race_name in urls:
-        json_data = {}
-        id = 0
+            json_data = {}
+            race_download_tasks = []
+            names = unit_index.get((lang, race), {})
+            id = 0
+            for audio_url, quote_text, unit_name in quotes:
+                get_replique = clear_name(quote_text)
+                unit_key = names.get(unit_name)
+                if unit_key is None and names:
+                    unmatched.setdefault((lang, race), set()).add(unit_name)
 
-        get_page = session.get(url)
-        soup = BeautifulSoup(get_page.content, "lxml")
+                data = {
+                    "id_g": id_g,
+                    "id": id,
+                    "lang": lang,
+                    "race": race,
+                    "replique": get_replique,
+                    "url": audio_url,
+                    "name": unit_name,
+                    "unit_key": unit_key,
+                }
 
-        race_download_tasks = []
-        for audio_url, quote_text, unit_name in parse_race_page(soup):
-            get_replique = clear_name(quote_text)
+                # Delete full punctuation for file name
+                file_name = get_replique.translate(str.maketrans('', '', string.punctuation))
+                data['file_name'] = file_name
 
-            data = {
-                "id_g": id_g,
-                "id": id,
-                "race": race_name,
-                "replique": get_replique,
-                "url": audio_url,
-                "name": unit_name,
-            }
+                name = str(id_g) + "-" + file_name[:20]
+                folder = f"./MP3/{lang}/{race}/{safe_dirname(unit_name)}/"
+                race_download_tasks.append((lang, audio_url, folder, name))
 
-            # Delete full punctuation for file name
-            file_name = get_replique.translate(str.maketrans('', '', string.punctuation))
-            data['file_name'] = file_name
+                json_data[f"{id}-{data['name']}"] = data
 
-            name = str(id_g) + "-" + file_name[:20]
-            race_download_tasks.append((audio_url, f"./MP3/{race_name}/{unit_name}/", name))
+                id += 1
+                id_g += 1
 
-            json_data[f"{id}-{data['name']}"] = data
+            if not json_data:
+                # Nothing scraped for this race (e.g. the page fetch was blocked or
+                # its layout changed) - never overwrite existing JSON/MP3s with an
+                # empty result.
+                print(f"WARNING: found 0 quotes for {lang}/{race}, leaving its JSON/MP3s untouched.")
+                continue
 
-            id += 1
-            id_g += 1
+            if args.check_names:
+                continue
 
-        if not json_data:
-            # Nothing scraped for this race (e.g. the page fetch was blocked or
-            # its layout changed) - never overwrite existing JSON/MP3s with an
-            # empty result.
-            print(f"WARNING: found 0 quotes for {race_name}, leaving its JSON/MP3s untouched.")
-            continue
+            # Clean slate for this lang/race: wipe previously downloaded clips before
+            # redownloading, only now that we know the scrape actually succeeded.
+            race_folder = f"./MP3/{lang}/{race}"
+            if os.path.exists(race_folder):
+                shutil.rmtree(race_folder)
 
-        # Clean slate for this race: wipe previously downloaded clips before
-        # redownloading, only now that we know the scrape actually succeeded.
-        race_folder = f"./MP3/{race_name}"
-        if os.path.exists(race_folder):
-            shutil.rmtree(race_folder)
+            download_tasks.extend(race_download_tasks)
 
-        download_tasks.extend(race_download_tasks)
+            # Save json
+            os.makedirs(f"data/{lang}", exist_ok=True)
+            with open(f"data/{lang}/{race}.json", "w", encoding="utf-8") as file:
+                json.dump(json_data, file, indent=4, ensure_ascii=False)
 
-        # Save json
-        with open(f"{race_name}.json", "w") as file:
-            json.dump(json_data, file, indent=4, ensure_ascii=False)
+    if not unit_index:
+        print("NOTE: unit_names.json not found or empty, unit_key left null (see build_unit_map.py).")
+    for (lang, race), missing in sorted(unmatched.items()):
+        print(f"UNMAPPED {lang}/{race} ({len(missing)}): {', '.join(sorted(map(str, missing)))}")
+
+    if args.check_names:
+        return
 
     scrape_elapsed = time.time() - start_time
     print(f"Scraped {len(download_tasks)} quotes in {scrape_elapsed:.1f}s, downloading audio "
@@ -156,8 +307,8 @@ def main():
     download_start = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {
-            executor.submit(write_mp3, session, url, folder, name): (url, folder, name)
-            for url, folder, name in download_tasks
+            executor.submit(write_mp3, sessions[lang], url, folder, name): (url, folder, name)
+            for lang, url, folder, name in download_tasks
         }
         for future in concurrent.futures.as_completed(futures):
             completed += 1
