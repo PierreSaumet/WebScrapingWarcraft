@@ -207,14 +207,17 @@ def fetch_all_pages(langs, sessions):
     return pages
 
 
-def load_unit_index():
-    """Return ({(lang, race): {unit_name: unit_key}}) from unit_names.json (empty if missing)."""
-    index = {}
+def load_unit_table():
     try:
         with open(UNIT_NAMES_FILE, encoding="utf-8") as fh:
-            table = json.load(fh)
+            return json.load(fh)
     except FileNotFoundError:
-        return index
+        return {}
+
+
+def build_unit_index(table):
+    """Return {(lang, race): {unit_name: unit_key}} from unit_names.json."""
+    index = {}
     for race, units in table.items():
         for key, names in units.items():
             for lang in ("fr", "en"):
@@ -224,13 +227,26 @@ def load_unit_index():
     return index
 
 
+def fallback_keys(race_counts, race_table):
+    """Units whose EN clips are completed with the FR ones: no EN clip at all, or
+    flagged `"fallback_fr": true` in unit_names.json (EN wiki has too few, e.g. Kodo Beast)."""
+    keys = set()
+    for key, names in race_table.items():
+        n = race_counts.get(key, {})
+        if n.get("fr", 0) > 0 and (n.get("en", 0) == 0 or names.get("fallback_fr")):
+            keys.add(key)
+    return keys
+
+
+def display_name(names, key):
+    """Folder/section name used for an unit in EN: its EN name, else its FR name."""
+    value = names.get("en") or names.get("fr") or key
+    return value if isinstance(value, str) else value[0]
+
+
 def print_comparison(counts, langs):
     """Per race and unit_key: clips per language, and which side(s) an unit exists on."""
-    try:
-        with open(UNIT_NAMES_FILE, encoding="utf-8") as fh:
-            table = json.load(fh)
-    except FileNotFoundError:
-        table = {}
+    table = load_unit_table()
 
     def label(race, key):
         names = table.get(race, {}).get(key, {})
@@ -241,6 +257,7 @@ def print_comparison(counts, langs):
     for race in [r for r, _ in SOURCES["fr"]]:
         # keys of the table never scraped on any requested lang are reported as stale
         units = dict(counts.get(race, {}))
+        filled = fallback_keys(units, table.get(race, {})) if len(langs) == 2 else set()
         stale = [k for k in table.get(race, {}) if k not in units]
         print(f"\n== {race} ==")
         print(f"{'unit':38} " + " ".join(f"{lang.upper():>5}" for lang in langs) + ("   diff  status" if len(langs) == 2 else ""))
@@ -253,7 +270,7 @@ def print_comparison(counts, langs):
             if len(langs) == 2:
                 fr, en = cells
                 status = "FR only" if en == 0 else "EN only" if fr == 0 else "ok" if fr == en else "count differs"
-                line += f"  {fr - en:+5}  {status}"
+                line += f"  {fr - en:+5}  {status}" + ("  -> EN completed with FR" if key in filled else "")
             print(line)
         for key in stale:
             print(f"{label(race, key)[:38]:38} (in unit_names.json but not scraped: stale or typo?)")
@@ -270,16 +287,23 @@ def main():
                         help="scrape pages only and list unit names missing from unit_names.json (no download)")
     args = parser.parse_args()
     langs = ["fr"] if args.fr else ["en"] if args.en else ["fr", "en"]
+    # EN is completed with FR clips for units the EN wiki lacks, so FR pages are
+    # always scraped when EN is requested (but only written if FR was requested).
+    scrape_langs = ["fr", "en"] if "en" in langs else ["fr"]
+    if args.check_names:
+        scrape_langs = ["fr", "en"] if "en" in langs else langs
 
     start_time = time.time()
-    sessions = make_sessions(langs)
-    pages = fetch_all_pages(langs, sessions)
-    unit_index = load_unit_index()
+    sessions = make_sessions(scrape_langs)
+    pages = fetch_all_pages(scrape_langs, sessions)
+    unit_table = load_unit_table()
+    unit_index = build_unit_index(unit_table)
 
     download_tasks = []  # (lang, url, folder, name)
     unmatched = {}
     counts = {}  # race -> unit_key (or '?name') -> lang -> number of clips
-    for lang in langs:
+    fr_quotes = {}  # race -> [(url, replique, unit_name, unit_key)], source of the EN fallback
+    for lang in scrape_langs:
         id_g = 0
         for race, _ref in SOURCES[lang]:
             html = pages.get((lang, race))
@@ -297,6 +321,8 @@ def main():
 
                 bucket = counts.setdefault(race, {}).setdefault(unit_key or f"?{unit_name}", {})
                 bucket[lang] = bucket.get(lang, 0) + 1
+                if lang == "fr":
+                    fr_quotes.setdefault(race, []).append((audio_url, get_replique, unit_name, unit_key))
 
                 data = {
                     "id_g": id_g,
@@ -307,6 +333,7 @@ def main():
                     "url": audio_url,
                     "name": unit_name,
                     "unit_key": unit_key,
+                    "fallback_from": None,
                 }
 
                 # Delete full punctuation for file name
@@ -322,6 +349,25 @@ def main():
                 id += 1
                 id_g += 1
 
+            if lang == "en" and json_data and not args.check_names:
+                # Complete units the EN wiki lacks with the FR clips (marked fallback_from="fr").
+                race_table = unit_table.get(race, {})
+                for key in sorted(fallback_keys(counts.get(race, {}), race_table)):
+                    unit_name = display_name(race_table[key], key)
+                    for audio_url, replique, _fr_name, fr_key in fr_quotes.get(race, []):
+                        if fr_key != key:
+                            continue
+                        file_name = replique.translate(str.maketrans('', '', string.punctuation))
+                        json_data[f"{id}-{unit_name}"] = {
+                            "id_g": id_g, "id": id, "lang": lang, "race": race,
+                            "replique": replique, "url": audio_url, "name": unit_name,
+                            "unit_key": key, "fallback_from": "fr", "file_name": file_name,
+                        }
+                        folder = f"./MP3/{lang}/{race}/{safe_dirname(unit_name)}/"
+                        race_download_tasks.append(("fr", audio_url, folder, f"{id_g}-{file_name[:20]}"))
+                        id += 1
+                        id_g += 1
+
             if not json_data:
                 # Nothing scraped for this race (e.g. the page fetch was blocked or
                 # its layout changed) - never overwrite existing JSON/MP3s with an
@@ -329,7 +375,7 @@ def main():
                 print(f"WARNING: found 0 quotes for {lang}/{race}, leaving its JSON/MP3s untouched.")
                 continue
 
-            if args.check_names:
+            if args.check_names or lang not in langs:
                 continue
 
             # Clean slate for this lang/race: wipe previously downloaded clips before
@@ -351,7 +397,7 @@ def main():
         print(f"UNMAPPED {lang}/{race} ({len(missing)}): {', '.join(sorted(map(str, missing)))}")
 
     if args.check_names:
-        print_comparison(counts, langs)
+        print_comparison(counts, scrape_langs)
         return
 
     scrape_elapsed = time.time() - start_time

@@ -152,7 +152,8 @@
     },
     "kodo_beast": {
       "fr": "Bête_kodo",
-      "en": "Kodo_Beast"
+      "en": "Kodo_Beast",
+      "fallback_fr": true
     },
     "wyvern_wind_rider": {
       "fr": "Chevaucheur_de_vent",

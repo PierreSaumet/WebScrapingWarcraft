@@ -17,12 +17,12 @@ Le script `scrapping.py` récupère les répliques de Warcraft III pour les 4 ra
 
 | Race (clé) | FR | EN | JSON | Audio |
 |---|---|---|---|---|
-| Humain / Human (`Human`) | 536 | 492 | `data/<lang>/Human.json` | `MP3/<lang>/Human/` |
-| Orc (`Orc`) | 475 | 385 | `data/<lang>/Orc.json` | `MP3/<lang>/Orc/` |
-| Elfe de la nuit / Night Elf (`Night_Elf`) | 599 | 391 | `data/<lang>/Night_Elf.json` | `MP3/<lang>/Night_Elf/` |
-| Mort-vivant / Undead (`Undead`) | 453 | 330 | `data/<lang>/Undead.json` | `MP3/<lang>/Undead/` |
+| Humain / Human (`Human`) | 536 | 492 (+82 repli FR) | `data/<lang>/Human.json` | `MP3/<lang>/Human/` |
+| Orc (`Orc`) | 475 | 385 (+66) | `data/<lang>/Orc.json` | `MP3/<lang>/Orc/` |
+| Elfe de la nuit / Night Elf (`Night_Elf`) | 599 | 391 (+141) | `data/<lang>/Night_Elf.json` | `MP3/<lang>/Night_Elf/` |
+| Mort-vivant / Undead (`Undead`) | 453 | 330 (+117) | `data/<lang>/Undead.json` | `MP3/<lang>/Undead/` |
 
-Pour **chaque réplique**, il extrait le texte, l'URL du clip et le nom de l'unité / héros / section, télécharge le clip, le convertit en **mp3** (`pydub` + `ffmpeg`) et enregistre les métadonnées dans le JSON de la race. Un run complet (`--all`) télécharge ~3 660 clips en ~2,5 minutes (8 téléchargements en parallèle).
+Pour **chaque réplique**, il extrait le texte, l'URL du clip et le nom de l'unité / héros / section, télécharge le clip, le convertit en **mp3** (`pydub` + `ffmpeg`) et enregistre les métadonnées dans le JSON de la race. Un run complet (`--all`) télécharge ~4 070 clips (dont ~406 clips FR de repli côté EN) en ~3 minutes (8 téléchargements en parallèle).
 
 ### Format des données
 
@@ -40,9 +40,14 @@ Chaque entrée du JSON (clé `"{id}-{nom}"`) :
     "url": "https://static.wikia.nocookie.net/...ogg",
     "name": "Alertes",
     "unit_key": "alerts",
+    "fallback_from": null,
     "file_name": "améliorationterminée"
 }
 ```
+
+### Unités sans répliques EN : repli sur le FR
+
+Quand une unité n'a **aucune** réplique EN (`Alertes`, `Bâtiments`, `Chimère`…), ou qu'elle est marquée `"fallback_fr": true` dans `unit_names.json` (ex. `kodo_beast`, 1 réplique EN seulement), ses clips FR sont ajoutés au jeu EN : texte et audio restent en français et l'entrée porte `"fallback_from": "fr"` (les vraies répliques EN ont `null`). Le dossier prend le nom EN de l'unité, ou son nom FR s'il n'y en a pas. Les pages FR sont donc aussi lues avec `--en`, mais les fichiers FR ne sont écrits qu'avec `--fr`/`--all`. Pour exclure ces clips : `fallback_from == null`. Le total EN passe ainsi de 1 598 à 2 004 clips.
 
 ### Lien entre unités FR et EN
 
