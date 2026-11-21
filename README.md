@@ -47,13 +47,13 @@ Chaque entrée du JSON (clé `"{id}-{nom}"`) :
 
 ### Unités sans répliques EN : repli sur le FR
 
-Quand une unité n'a **aucune** réplique EN (`Alertes`, `Bâtiments`, `Chimère`…), ou qu'elle est marquée `"fallback_fr": true` dans `unit_names.json` (ex. `kodo_beast`, 1 réplique EN seulement), ses clips FR sont ajoutés au jeu EN : texte et audio restent en français et l'entrée porte `"fallback_from": "fr"` (les vraies répliques EN ont `null`). Le dossier prend le nom EN de l'unité, ou son nom FR s'il n'y en a pas. Les pages FR sont donc aussi lues avec `--en`, mais les fichiers FR ne sont écrits qu'avec `--fr`/`--all`. Pour exclure ces clips : `fallback_from == null`.
+Quand une unité n'a **aucune** réplique EN (`Alertes`, `Bâtiments`, `Chimère`…), ou qu'elle est marquée `"fallback_fr": true` dans `unit_names.json` (ex. `kodo_beast`, 1 réplique EN seulement), ses clips FR sont ajoutés au jeu EN : texte et audio restent en français et l'entrée porte `"fallback_from": "fr"` (les vraies répliques EN ont `null`). Si les pages FR ne peuvent pas être lues pendant un run EN, les données EN existantes ne sont pas touchées. Le dossier prend le nom EN de l'unité, ou son nom FR s'il n'y en a pas. Les pages FR sont donc aussi lues avec `--en`, mais les fichiers FR ne sont écrits qu'avec `--fr`/`--all`. Pour exclure ces clips : `fallback_from == null`.
 
 **Résumé des écarts FR/EN** : à la fin de chaque run (`--all`, `--en`) un résumé affiche, par race, les clips FR, EN du wiki et EN après repli, le nombre d'unités identiques / différentes / présentes d'un seul côté, et les plus gros écarts. `python scrapping.py --check-names` donne le tableau complet par unité (colonnes `FR`, `EN`, `diff`, `EN+FB` = EN après repli, `status`) sans télécharger. Le total EN passe ainsi de 1 598 à 2 004 clips.
 
 ### Fichier récapitulatif
 
-À la fin de chaque run (hors `--check-names`), `data/all_quotes.json` fusionne toutes les répliques FR et EN : `race → unit_key → {names: {fr, en}, fr: [...], en: [...]}`. Chaque réplique donne `id_g`, `id`, `replique`, `url`, `name`, `fallback_from` et `file` (chemin du mp3). Il est reconstruit à partir des `data/<lang>/<Race>.json` présents sur le disque : un run `--fr` ou `--en` conserve donc l'autre langue de son dernier run.
+À la fin de chaque run (hors `--check-names`), `data/all_quotes.json` fusionne toutes les répliques FR et EN : `race → unit_key → {names: {fr, en}, fr: [...], en: [...]}`. Chaque réplique donne `id_g`, `id`, `replique`, `url`, `name`, `fallback_from` et `file` (chemin du mp3). Seuls les clips dont le mp3 existe sont listés. Il est reconstruit à partir des `data/<lang>/<Race>.json` présents sur le disque : un run `--fr` ou `--en` conserve donc l'autre langue de son dernier run.
 
 ### Lien entre unités FR et EN
 
@@ -111,7 +111,7 @@ Les JSON sont créés dans `data/<lang>/` et les clips dans `MP3/<lang>/`.
 
 **Après**
 
-- [ ] La dernière ligne indique `Done. N/N clips downloaded successfully`. Chaque téléchargement est retenté jusqu'à 4 fois (attente 1, 2, 4 s) : le CDN renvoie parfois un 403 ponctuel. Les échecs définitifs sont listés un par un (`Failed to download ...`), ils ne bloquent pas le reste; relancez la langue concernée.
+- [ ] La dernière ligne indique `Done. N/N clips downloaded successfully`. Chaque téléchargement est retenté jusqu'à 4 fois (attente 1, 2, 4 s) sur les erreurs passagères (403, 429, 5xx, timeout, challenge Cloudflare) : le CDN renvoie parfois un 403 ponctuel. Les 404 ne sont pas retentés. Les échecs définitifs sont listés un par un (`Failed to download ...`), ils ne bloquent pas le reste; relancez la langue concernée.
 - [ ] Aucun message `WARNING: found 0 quotes for <lang>/<race>` ni `UNMAPPED ...`. S'il apparaît, la page n'a pas pu être lue (voir la section suivante).
 - [ ] Les JSON existent dans `data/<lang>/` et `MP3/<lang>/` contient un sous-dossier par race.
 - [ ] Aucune entrée avec `"name": null` dans les JSON : ce serait le signe que le wiki a changé la structure de ses titres de sections.

@@ -65,14 +65,23 @@ def safe_dirname(name) -> str:
 DOWNLOAD_RETRIES = 4
 
 
+def is_transient(exc):
+    """Worth retrying: timeouts, connection errors, Cloudflare challenges, 403/429/5xx.
+    Other 4xx (404, 410...) are permanent: fail fast."""
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        code = exc.response.status_code
+        return code in (403, 429) or code >= 500
+    return True
+
+
 def download_with_retry(session, url, retries=DOWNLOAD_RETRIES):
     for attempt in range(retries):
         try:
             resp = session.get(url, timeout=60)
             resp.raise_for_status()
             return resp.content
-        except requests.RequestException:
-            if attempt == retries - 1:
+        except (requests.RequestException, cloudscraper.exceptions.CloudflareException) as exc:
+            if attempt == retries - 1 or not is_transient(exc):
                 raise
             time.sleep(2 ** attempt + random.random())  # 1s, 2s, 4s (+ jitter)
 
@@ -113,7 +122,8 @@ def parse_race_page(soup, quote_tags=("li",)):
                 current_name = tag.get('id')
             continue
 
-        audios = tag.find_all('audio')
+        # Only this tag's own clips: a nested <li>/<dd> keeps its own audio and text.
+        audios = [a for a in tag.find_all('audio') if a.find_parent(list(quote_tags)) is tag]
         if not audios:
             continue
 
@@ -132,6 +142,8 @@ def parse_race_page(soup, quote_tags=("li",)):
                 wrapper.extract()
             else:
                 audio.extract()
+        for nested in tag.find_all(list(quote_tags)):
+            nested.extract()  # still iterated later by the outer loop, with its own audio and text
         quote_text = tag.get_text()
         if len(audios) > 1:
             quote_text = re.sub(r'(\s*/\s*)+$', '', quote_text)
@@ -141,8 +153,17 @@ def parse_race_page(soup, quote_tags=("li",)):
                 yield audio_url, quote_text, current_name
 
 
-def fetch_html_fr(session, url):
-    return session.get(url).content
+def fetch_html_fr(session, url, retries=3):
+    last_exc = None
+    for attempt in range(retries):
+        try:
+            resp = session.get(url, timeout=60)
+            resp.raise_for_status()  # a blocked fetch must be visible, not parsed as "0 quotes"
+            return resp.content
+        except Exception as exc:
+            last_exc = exc
+            time.sleep(1.5 * (attempt + 1))
+    raise last_exc
 
 
 def fetch_html_en(session, page, retries=3):
@@ -323,6 +344,7 @@ def write_all_quotes(path="data/all_quotes.json"):
     so a --fr or --en run still produces a complete recap from the other language's last run."""
     table = load_unit_table()
     merged = {}
+    missing = 0
     for race, _ref in SOURCES["fr"]:
         units = {}
         for lang in ("fr", "en"):
@@ -337,10 +359,14 @@ def write_all_quotes(path="data/all_quotes.json"):
                 names = table.get(race, {}).get(key)
                 if names:
                     unit["names"] = {"fr": names.get("fr"), "en": names.get("en")}
+                file = f"MP3/{lang}/{race}/{safe_dirname(rec['name'])}/{rec['id_g']}-{rec['file_name'][:20]}.mp3"
+                if not os.path.exists(file):
+                    missing += 1  # download failed (or stale JSON): don't advertise a missing file
+                    continue
                 unit[lang].append({
                     "id_g": rec["id_g"], "id": rec["id"], "replique": rec["replique"], "url": rec["url"],
                     "name": rec["name"], "fallback_from": rec.get("fallback_from"),
-                    "file": f"MP3/{lang}/{race}/{safe_dirname(rec['name'])}/{rec['id_g']}-{rec['file_name'][:20]}.mp3",
+                    "file": file,
                 })
         if units:
             merged[race] = dict(sorted(units.items()))
@@ -348,7 +374,8 @@ def write_all_quotes(path="data/all_quotes.json"):
         return
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(merged, fh, indent=2, ensure_ascii=False)
-    print(f"Recap written to {path} ({sum(len(u['fr']) + len(u['en']) for r in merged.values() for u in r.values())} quotes).")
+    print(f"Recap written to {path} ({sum(len(u['fr']) + len(u['en']) for r in merged.values() for u in r.values())} quotes)"
+          + (f", {missing} skipped (mp3 missing)." if missing else "."))
 
 
 def main():
@@ -452,6 +479,13 @@ def main():
             if args.check_names or lang not in langs:
                 continue
 
+            if lang == "en" and not fr_quotes.get(race):
+                # The EN dataset is completed with FR clips: if the FR source is empty
+                # (blocked fetch / layout change), rewriting would silently drop them.
+                print(f"WARNING: no FR quotes for {race} (needed for the EN fallback), "
+                      f"leaving en/{race} JSON/MP3s untouched.")
+                continue
+
             # Clean slate for this lang/race: wipe previously downloaded clips before
             # redownloading, only now that we know the scrape actually succeeded.
             race_folder = f"./MP3/{lang}/{race}"
@@ -466,7 +500,7 @@ def main():
                 json.dump(json_data, file, indent=4, ensure_ascii=False)
 
     if not unit_index:
-        print("NOTE: unit_names.json not found or empty, unit_key left null (see build_unit_map.py).")
+        print("NOTE: unit_names.json not found or empty, unit_key left null.")
     for (lang, race), missing in sorted(unmatched.items()):
         print(f"UNMAPPED {lang}/{race} ({len(missing)}): {', '.join(sorted(map(str, missing)))}")
 
