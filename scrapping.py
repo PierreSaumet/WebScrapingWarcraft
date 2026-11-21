@@ -317,6 +317,40 @@ def print_summary(counts, langs, top=5):
     print("  (FR/EN clips; * = EN completed with FR clips)")
 
 
+def write_all_quotes(path="data/all_quotes.json"):
+    """Merge every data/<lang>/<Race>.json found on disk into one file:
+    race -> unit_key -> {names, fr: [...], en: [...]}. Reads the files (not memory)
+    so a --fr or --en run still produces a complete recap from the other language's last run."""
+    table = load_unit_table()
+    merged = {}
+    for race, _ref in SOURCES["fr"]:
+        units = {}
+        for lang in ("fr", "en"):
+            try:
+                with open(f"data/{lang}/{race}.json", encoding="utf-8") as fh:
+                    records = json.load(fh)
+            except FileNotFoundError:
+                continue
+            for rec in records.values():
+                key = rec.get("unit_key") or f"?{rec.get('name')}"
+                unit = units.setdefault(key, {"names": {"fr": None, "en": None}, "fr": [], "en": []})
+                names = table.get(race, {}).get(key)
+                if names:
+                    unit["names"] = {"fr": names.get("fr"), "en": names.get("en")}
+                unit[lang].append({
+                    "id_g": rec["id_g"], "id": rec["id"], "replique": rec["replique"], "url": rec["url"],
+                    "name": rec["name"], "fallback_from": rec.get("fallback_from"),
+                    "file": f"MP3/{lang}/{race}/{safe_dirname(rec['name'])}/{rec['id_g']}-{rec['file_name'][:20]}.mp3",
+                })
+        if units:
+            merged[race] = dict(sorted(units.items()))
+    if not merged:
+        return
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(merged, fh, indent=2, ensure_ascii=False)
+    print(f"Recap written to {path} ({sum(len(u['fr']) + len(u['en']) for r in merged.values() for u in r.values())} quotes).")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Scrape Warcraft III voice lines (FR and/or EN).")
     group = parser.add_mutually_exclusive_group()
@@ -472,6 +506,7 @@ def main():
     total_elapsed = time.time() - start_time
     print(f"Done. {total - failures}/{total} clips downloaded successfully in {total_elapsed:.1f}s.")
     print_summary(counts, scrape_langs)
+    write_all_quotes()
 
 
 if __name__ == "__main__":

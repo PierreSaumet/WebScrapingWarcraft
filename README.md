@@ -51,6 +51,10 @@ Quand une unité n'a **aucune** réplique EN (`Alertes`, `Bâtiments`, `Chimère
 
 **Résumé des écarts FR/EN** : à la fin de chaque run (`--all`, `--en`) un résumé affiche, par race, les clips FR, EN du wiki et EN après repli, le nombre d'unités identiques / différentes / présentes d'un seul côté, et les plus gros écarts. `python scrapping.py --check-names` donne le tableau complet par unité (colonnes `FR`, `EN`, `diff`, `EN+FB` = EN après repli, `status`) sans télécharger. Le total EN passe ainsi de 1 598 à 2 004 clips.
 
+### Fichier récapitulatif
+
+À la fin de chaque run (hors `--check-names`), `data/all_quotes.json` fusionne toutes les répliques FR et EN : `race → unit_key → {names: {fr, en}, fr: [...], en: [...]}`. Chaque réplique donne `id_g`, `id`, `replique`, `url`, `name`, `fallback_from` et `file` (chemin du mp3). Il est reconstruit à partir des `data/<lang>/<Race>.json` présents sur le disque : un run `--fr` ou `--en` conserve donc l'autre langue de son dernier run.
+
 ### Lien entre unités FR et EN
 
 `unit_names.json` (versionné) relie les noms de sections : `race → unit_key → {fr, en}` (`fr` peut être une liste quand une unité a plusieurs formes; `null` si l'unité n'existe que d'un côté). Chaque réplique porte le `unit_key` correspondant : filtrer sur `unit_key` donne les répliques FR et EN d'une même unité (ex. `footman` ↔ Fantassin).
