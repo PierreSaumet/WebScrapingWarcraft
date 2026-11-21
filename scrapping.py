@@ -65,8 +65,12 @@ def parse_race_page(soup):
         if not is_audio:
             continue
 
-        audio_url = is_audio.get('src')
+        # The wiki serves the audio URL either in `src` or, with lazy loading,
+        # in `data-src`. Accept both.
+        audio_url = is_audio.get('src') or is_audio.get('data-src')
         is_audio.extract()
+        if not audio_url:
+            continue
         quote_text = tag.get_text()
 
         yield audio_url, quote_text, current_name

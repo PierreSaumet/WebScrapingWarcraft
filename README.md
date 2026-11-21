@@ -106,6 +106,7 @@ Les fichiers `*.json` sont créés à la racine du projet et les clips dans `MP3
 - **Cloudflare** : le wiki est protégé par un challenge JavaScript. Avec `requests` seul, il renvoie une page « Just a moment... » (HTTP 403) sans lever d'erreur, et le script ne trouverait aucune réplique. Le projet utilise donc `cloudscraper`. Ne le remplacez pas par `requests`.
 - **Protection des données existantes** : si une race ne renvoie aucune réplique (page bloquée ou mise en page modifiée), elle est **ignorée** : son dossier `MP3/<Race>/` et son JSON ne sont pas touchés. Pour une race qui a réussi, `MP3/<Race>/` est **supprimé puis retéléchargé** à chaque lancement : ne placez rien d'autre dedans.
 - **Faux mp3** : les fichiers sources sont en réalité des `.ogg`. Le script laisse `ffmpeg` détecter le format à la lecture et n'impose `mp3` qu'à l'export. Forcer `format="mp3"` en entrée fait échouer tous les décodages.
+- **URL audio en `src` ou `data-src`** : selon la page servie, le wiki met l'URL du clip dans `src` ou (chargement différé) dans `data-src`. Le parseur accepte les deux et ignore les répliques sans URL.
 - **Deux variantes de titres** : le wiki sert au hasard deux structures de titres de sections (`<span class="mw-headline">` ou `<h2 id=...>`). `parse_race_page()` gère les deux.
 
 ## Configuration
