@@ -47,7 +47,9 @@ Chaque entrée du JSON (clé `"{id}-{nom}"`) :
 
 ### Unités sans répliques EN : repli sur le FR
 
-Quand une unité n'a **aucune** réplique EN (`Alertes`, `Bâtiments`, `Chimère`…), ou qu'elle est marquée `"fallback_fr": true` dans `unit_names.json` (ex. `kodo_beast`, 1 réplique EN seulement), ses clips FR sont ajoutés au jeu EN : texte et audio restent en français et l'entrée porte `"fallback_from": "fr"` (les vraies répliques EN ont `null`). Le dossier prend le nom EN de l'unité, ou son nom FR s'il n'y en a pas. Les pages FR sont donc aussi lues avec `--en`, mais les fichiers FR ne sont écrits qu'avec `--fr`/`--all`. Pour exclure ces clips : `fallback_from == null`. Le total EN passe ainsi de 1 598 à 2 004 clips.
+Quand une unité n'a **aucune** réplique EN (`Alertes`, `Bâtiments`, `Chimère`…), ou qu'elle est marquée `"fallback_fr": true` dans `unit_names.json` (ex. `kodo_beast`, 1 réplique EN seulement), ses clips FR sont ajoutés au jeu EN : texte et audio restent en français et l'entrée porte `"fallback_from": "fr"` (les vraies répliques EN ont `null`). Le dossier prend le nom EN de l'unité, ou son nom FR s'il n'y en a pas. Les pages FR sont donc aussi lues avec `--en`, mais les fichiers FR ne sont écrits qu'avec `--fr`/`--all`. Pour exclure ces clips : `fallback_from == null`.
+
+**Résumé des écarts FR/EN** : à la fin de chaque run (`--all`, `--en`) un résumé affiche, par race, les clips FR, EN du wiki et EN après repli, le nombre d'unités identiques / différentes / présentes d'un seul côté, et les plus gros écarts. `python scrapping.py --check-names` donne le tableau complet par unité (colonnes `FR`, `EN`, `diff`, `EN+FB` = EN après repli, `status`) sans télécharger. Le total EN passe ainsi de 1 598 à 2 004 clips.
 
 ### Lien entre unités FR et EN
 

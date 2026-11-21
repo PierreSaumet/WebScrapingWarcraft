@@ -244,37 +244,77 @@ def display_name(names, key):
     return value if isinstance(value, str) else value[0]
 
 
-def print_comparison(counts, langs):
-    """Per race and unit_key: clips per language, and which side(s) an unit exists on."""
+def comparison_rows(counts, langs):
+    """{race: [row]} with per-unit clip counts: fr, en (as on the wikis), en_after (EN after the FR fallback)."""
     table = load_unit_table()
-
-    def label(race, key):
-        names = table.get(race, {}).get(key, {})
-        value = names.get("en") or names.get("fr") or key
-        return value if isinstance(value, str) else value[0]
-
-    totals = {lang: 0 for lang in langs}
+    both = "fr" in langs and "en" in langs
+    result = {}
     for race in [r for r, _ in SOURCES["fr"]]:
-        # keys of the table never scraped on any requested lang are reported as stale
-        units = dict(counts.get(race, {}))
-        filled = fallback_keys(units, table.get(race, {})) if len(langs) == 2 else set()
-        stale = [k for k in table.get(race, {}) if k not in units]
+        units = counts.get(race, {})
+        race_table = table.get(race, {})
+        filled = fallback_keys(units, race_table) if both else set()
+        rows = []
+        for key in sorted(set(units) | set(race_table)):
+            n = units.get(key, {})
+            fr, en = n.get("fr", 0), n.get("en", 0)
+            names = race_table.get(key, {})
+            label = display_name(names, key) if names else key.lstrip("?")
+            if not n:
+                status = "stale"
+            elif not both:
+                status = ""
+            elif en == 0:
+                status = "FR only"
+            elif fr == 0:
+                status = "EN only"
+            else:
+                status = "ok" if fr == en else "count differs"
+            rows.append({"key": key, "label": label, "fr": fr, "en": en,
+                         "en_after": en + fr if key in filled else en, "filled": key in filled, "status": status})
+        result[race] = sorted(rows, key=lambda r: r["label"].lower())
+    return result
+
+
+def print_comparison(counts, langs):
+    """Full per race / per unit table (--check-names)."""
+    both = "fr" in langs and "en" in langs
+    for race, rows in comparison_rows(counts, langs).items():
         print(f"\n== {race} ==")
-        print(f"{'unit':38} " + " ".join(f"{lang.upper():>5}" for lang in langs) + ("   diff  status" if len(langs) == 2 else ""))
-        for key in sorted(units, key=lambda k: label(race, k).lower()):
-            row = units[key]
-            cells = [row.get(lang, 0) for lang in langs]
-            for lang, n in zip(langs, cells):
-                totals[lang] += n
-            line = f"{label(race, key)[:38]:38} " + " ".join(f"{n:5}" for n in cells)
-            if len(langs) == 2:
-                fr, en = cells
-                status = "FR only" if en == 0 else "EN only" if fr == 0 else "ok" if fr == en else "count differs"
-                line += f"  {fr - en:+5}  {status}" + ("  -> EN completed with FR" if key in filled else "")
+        head = f"{'unit':38} " + " ".join(f"{lang.upper():>5}" for lang in langs)
+        print(head + ("   diff  EN+FB  status" if both else ""))
+        for r in rows:
+            if r["status"] == "stale":
+                print(f"{r['label'][:38]:38} (in unit_names.json but not scraped: stale or typo?)")
+                continue
+            line = f"{r['label'][:38]:38} " + " ".join(f"{r[lang]:5}" for lang in langs)
+            if both:
+                line += f"  {r['fr'] - r['en']:+5}  {r['en_after']:5}  {r['status']}"
             print(line)
-        for key in stale:
-            print(f"{label(race, key)[:38]:38} (in unit_names.json but not scraped: stale or typo?)")
-    print("\nTOTAL " + "  ".join(f"{lang.upper()}={totals[lang]}" for lang in langs))
+    print_summary(counts, langs)
+
+
+def print_summary(counts, langs, top=5):
+    """Compact end-of-run overview: totals per race and the biggest FR/EN gaps."""
+    if not ("fr" in langs and "en" in langs):
+        return
+    rows_by_race = comparison_rows(counts, langs)
+    print("\n=== FR / EN summary (clips) ===")
+    print(f"{'race':10} {'FR':>6} {'EN wiki':>8} {'EN +FR fallback':>16} {'units ok':>9} {'differ':>7} {'one side':>9}")
+    tot = [0, 0, 0]
+    for race, rows in rows_by_race.items():
+        fr = sum(r["fr"] for r in rows); en = sum(r["en"] for r in rows); after = sum(r["en_after"] for r in rows)
+        ok = sum(r["status"] == "ok" for r in rows)
+        differ = sum(r["status"] == "count differs" for r in rows)
+        one = sum(r["status"] in ("FR only", "EN only") for r in rows)
+        tot = [tot[0] + fr, tot[1] + en, tot[2] + after]
+        print(f"{race:10} {fr:6} {en:8} {after:16} {ok:9} {differ:7} {one:9}")
+    print(f"{'TOTAL':10} {tot[0]:6} {tot[1]:8} {tot[2]:16}")
+    print(f"\nLargest FR/EN gaps (wiki counts, before fallback; full table: python scrapping.py --check-names):")
+    for race, rows in rows_by_race.items():
+        gaps = sorted((r for r in rows if r["status"] in ("count differs", "FR only", "EN only")),
+                      key=lambda r: -abs(r["fr"] - r["en"]))[:top]
+        print(f"  {race}: " + ", ".join(f"{r['label']} {r['fr']}/{r['en']}" + ("*" if r["filled"] else "") for r in gaps))
+    print("  (FR/EN clips; * = EN completed with FR clips)")
 
 
 def main():
@@ -431,6 +471,7 @@ def main():
     print()
     total_elapsed = time.time() - start_time
     print(f"Done. {total - failures}/{total} clips downloaded successfully in {total_elapsed:.1f}s.")
+    print_summary(counts, scrape_langs)
 
 
 if __name__ == "__main__":
